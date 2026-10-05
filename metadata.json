@@ -1,0 +1,6 @@
+{
+  "name": "Le Français Facile - أستاذ الفرنسية الذكي",
+  "description": "منصة تعليمية تفاعلية مصممة لتعليم نطق وكتابة وحفظ مفردات اللغة الفرنسية مع المعنى العربي للأطفال والطلاب مع ميزة التدريب الصوتي والإملاء وإدارة الفهرس.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
