@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { Plus, Search, Filter, Edit3, Trash2, Volume2, CheckCircle2, Bookmark, RotateCcw, Printer, Sparkles, X, Check } from 'lucide-react';
-import { VocabularyWord, WordCategory } from '../types';
-import { speakFrench, playSound } from '../utils/audio';
+import { Plus, Search, Edit3, Trash2, Volume2, CheckCircle2, Bookmark, RotateCcw, Printer, Sparkles, X, Check, FolderPlus, Layers, CheckSquare, Square } from 'lucide-react';
+import { VocabularyWord, WordCategory, AppLanguage, TrainingLanguage, WordGroup } from '../types';
+import { UI_TEXT } from '../translations';
+import { speakFrench, speakEnglish, playSound } from '../utils/audio';
+import { WordGroupDropdown } from './WordGroupDropdown';
 
 interface VocabularyManagerProps {
   words: VocabularyWord[];
@@ -11,6 +13,11 @@ interface VocabularyManagerProps {
   onResetDefaults: () => void;
   onToggleMastered: (id: string) => void;
   onToggleFavorite: (id: string) => void;
+  appLang: AppLanguage;
+  trainingLang: TrainingLanguage;
+  groups?: WordGroup[];
+  onToggleWordInGroup?: (groupId: string, wordId: string) => void;
+  onOpenCreateGroupModal?: (group?: WordGroup | null, preselectedWordIds?: string[]) => void;
 }
 
 export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
@@ -21,7 +28,53 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
   onResetDefaults,
   onToggleMastered,
   onToggleFavorite,
+  appLang,
+  trainingLang,
+  groups = [],
+  onToggleWordInGroup,
+  onOpenCreateGroupModal,
 }) => {
+  const t = appLang === 'en' ? UI_TEXT.en : UI_TEXT.ar;
+  const [selectedForBatchGroup, setSelectedForBatchGroup] = useState<string[]>([]);
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+
+  const toggleWordSelection = (wordId: string) => {
+    playSound('pop');
+    setSelectedForBatchGroup((prev) =>
+      prev.includes(wordId) ? prev.filter((id) => id !== wordId) : [...prev, wordId]
+    );
+  };
+
+  const handleSelectAllFiltered = () => {
+    playSound('pop');
+    const ids = filteredWords.map((w) => w.id);
+    setSelectedForBatchGroup((prev) => Array.from(new Set([...prev, ...ids])));
+  };
+
+  const handleClearSelection = () => {
+    playSound('pop');
+    setSelectedForBatchGroup([]);
+  };
+
+  const handleCreateGroupWithSelected = () => {
+    if (selectedForBatchGroup.length === 0) return;
+    playSound('celebration');
+    onOpenCreateGroupModal?.(null, selectedForBatchGroup);
+  };
+
+  const handleAddSelectedToExistingGroup = (groupId: string) => {
+    if (!groupId || selectedForBatchGroup.length === 0 || !onToggleWordInGroup) return;
+    playSound('correct');
+    const targetGroup = groups.find((g) => g.id === groupId);
+    if (!targetGroup) return;
+    selectedForBatchGroup.forEach((wId) => {
+      if (!targetGroup.wordIds.includes(wId)) {
+        onToggleWordInGroup(groupId, wId);
+      }
+    });
+    setSelectedForBatchGroup([]);
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [filterMastered, setFilterMastered] = useState<string>('all');
@@ -33,28 +86,42 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
   // Form State
   const [french, setFrench] = useState('');
   const [arabicMeaning, setArabicMeaning] = useState('');
+  const [englishMeaning, setEnglishMeaning] = useState('');
   const [arabicPhonetic, setArabicPhonetic] = useState('');
+  const [englishPhonetic, setEnglishPhonetic] = useState('');
+  const [englishArabicPhonetic, setEnglishArabicPhonetic] = useState('');
   const [ipa, setIpa] = useState('');
   const [syllablesInput, setSyllablesInput] = useState('');
+  const [englishSyllablesInput, setEnglishSyllablesInput] = useState('');
   const [category, setCategory] = useState<WordCategory>('noun');
   const [categoryLabelAr, setCategoryLabelAr] = useState('اسم (Nom)');
+  const [categoryLabelEn, setCategoryLabelEn] = useState('Noun');
   const [pronunciationTip, setPronunciationTip] = useState('');
+  const [englishPronunciationTipAr, setEnglishPronunciationTipAr] = useState('');
   const [exampleFrench, setExampleFrench] = useState('');
   const [exampleArabic, setExampleArabic] = useState('');
+  const [exampleEnglish, setExampleEnglish] = useState('');
   const [synonymsOrNotes, setSynonymsOrNotes] = useState('');
 
   const openAddModal = () => {
     setEditingWord(null);
     setFrench('');
     setArabicMeaning('');
+    setEnglishMeaning('');
     setArabicPhonetic('');
+    setEnglishPhonetic('');
+    setEnglishArabicPhonetic('');
     setIpa('');
     setSyllablesInput('');
+    setEnglishSyllablesInput('');
     setCategory('noun');
     setCategoryLabelAr('اسم (Nom)');
+    setCategoryLabelEn('Noun');
     setPronunciationTip('');
+    setEnglishPronunciationTipAr('');
     setExampleFrench('');
     setExampleArabic('');
+    setExampleEnglish('');
     setSynonymsOrNotes('');
     setIsModalOpen(true);
     playSound('pop');
@@ -64,14 +131,21 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
     setEditingWord(word);
     setFrench(word.french);
     setArabicMeaning(word.arabicMeaning);
+    setEnglishMeaning(word.englishMeaning || '');
     setArabicPhonetic(word.arabicPhonetic);
+    setEnglishPhonetic(word.englishPhonetic || '');
+    setEnglishArabicPhonetic(word.englishArabicPhonetic || '');
     setIpa(word.ipa);
     setSyllablesInput(word.syllables.join(' - '));
+    setEnglishSyllablesInput(word.englishSyllables ? word.englishSyllables.join(' - ') : '');
     setCategory(word.category);
     setCategoryLabelAr(word.categoryLabelAr);
+    setCategoryLabelEn(word.categoryLabelEn || 'Noun');
     setPronunciationTip(word.pronunciationTip);
+    setEnglishPronunciationTipAr(word.englishPronunciationTipAr || '');
     setExampleFrench(word.exampleFrench);
     setExampleArabic(word.exampleArabic);
+    setExampleEnglish(word.exampleEnglish || '');
     setSynonymsOrNotes(word.synonymsOrNotes || '');
     setIsModalOpen(true);
     playSound('pop');
@@ -82,71 +156,83 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
     switch (cat) {
       case 'verb':
         setCategoryLabelAr('فعل (Verbe)');
+        setCategoryLabelEn('Verb');
         break;
       case 'adjective':
         setCategoryLabelAr('صفة (Adjectif)');
+        setCategoryLabelEn('Adjective');
         break;
       case 'adverb':
         setCategoryLabelAr('ظرف (Adverbe)');
+        setCategoryLabelEn('Adverb');
         break;
       case 'expression':
         setCategoryLabelAr('تعبير (Expression)');
+        setCategoryLabelEn('Expression');
         break;
       case 'conjunction':
         setCategoryLabelAr('أداة ربط (Conjonction)');
+        setCategoryLabelEn('Conjunction');
         break;
       case 'preposition':
         setCategoryLabelAr('حرف جر (Préposition)');
+        setCategoryLabelEn('Preposition');
         break;
       default:
         setCategoryLabelAr('اسم (Nom)');
+        setCategoryLabelEn('Noun');
     }
   };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!french.trim() || !arabicMeaning.trim()) {
-      alert('يرجى كتابة الكلمة بالفرنسية ومعناها بالعربية.');
+    if (!french.trim() && !englishMeaning.trim()) {
+      alert('يرجى إدخال الكلمة بالفرنسية أو بالإنجليزية مع معناها.');
       return;
     }
 
-    const syllablesArray = syllablesInput
+    const frSyllablesArray = syllablesInput
       .split(/[-–—, ]+/)
       .map((s) => s.trim())
       .filter(Boolean);
 
-    const finalSyllables = syllablesArray.length > 0 ? syllablesArray : [french.trim()];
+    const enSyllablesArray = englishSyllablesInput
+      .split(/[-–—, ]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    const finalFrSyllables = frSyllablesArray.length > 0 ? frSyllablesArray : [french.trim() || '—'];
+    const finalEnSyllables = enSyllablesArray.length > 0 ? enSyllablesArray : [englishMeaning.trim() || '—'];
+
+    const wordData = {
+      french: french.trim() || englishMeaning.trim(),
+      arabicMeaning: arabicMeaning.trim() || '—',
+      englishMeaning: englishMeaning.trim() || french.trim(),
+      arabicPhonetic: arabicPhonetic.trim() || '—',
+      englishPhonetic: englishPhonetic.trim() || french.trim().toLowerCase(),
+      englishArabicPhonetic: englishArabicPhonetic.trim() || '—',
+      ipa: ipa.trim() || `[${french.trim().toLowerCase()}]`,
+      syllables: finalFrSyllables,
+      englishSyllables: finalEnSyllables,
+      category,
+      categoryLabelAr,
+      categoryLabelEn,
+      pronunciationTip: pronunciationTip.trim() || 'انتبهي لنطق الحروف ومخارج الأصوات بدقة.',
+      englishPronunciationTipAr: englishPronunciationTipAr.trim() || 'انتبهي للحروف الصامتة وأصوات المد في الكلمة الإنجليزية.',
+      exampleFrench: exampleFrench.trim() || french.trim(),
+      exampleArabic: exampleArabic.trim() || arabicMeaning.trim(),
+      exampleEnglish: exampleEnglish.trim() || englishMeaning.trim(),
+      synonymsOrNotes: synonymsOrNotes.trim(),
+    };
 
     if (editingWord) {
-      // Update
       onUpdateWord({
         ...editingWord,
-        french: french.trim(),
-        arabicMeaning: arabicMeaning.trim(),
-        arabicPhonetic: arabicPhonetic.trim() || '—',
-        ipa: ipa.trim() || `[${french.trim().toLowerCase()}]`,
-        syllables: finalSyllables,
-        category,
-        categoryLabelAr,
-        pronunciationTip: pronunciationTip.trim() || 'انتبهي لنطق الحروف ومخارج الأصوات بدقة.',
-        exampleFrench: exampleFrench.trim() || french.trim(),
-        exampleArabic: exampleArabic.trim() || arabicMeaning.trim(),
-        synonymsOrNotes: synonymsOrNotes.trim(),
+        ...wordData,
       });
     } else {
-      // Add
       onAddWord({
-        french: french.trim(),
-        arabicMeaning: arabicMeaning.trim(),
-        arabicPhonetic: arabicPhonetic.trim() || '—',
-        ipa: ipa.trim() || `[${french.trim().toLowerCase()}]`,
-        syllables: finalSyllables,
-        category,
-        categoryLabelAr,
-        pronunciationTip: pronunciationTip.trim() || 'انتبهي لنطق الحروف ومخارج الأصوات بدقة.',
-        exampleFrench: exampleFrench.trim() || french.trim(),
-        exampleArabic: exampleArabic.trim() || arabicMeaning.trim(),
-        synonymsOrNotes: synonymsOrNotes.trim(),
+        ...wordData,
         isMastered: false,
         isFavorite: false,
         practiceScore: 0,
@@ -157,10 +243,16 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
     playSound('correct');
   };
 
-  const handleTestAudio = () => {
+  const handleTestAudioFrench = () => {
     if (!french.trim()) return;
     playSound('pop');
     speakFrench(french.trim(), 'normal');
+  };
+
+  const handleTestAudioEnglish = () => {
+    if (!englishMeaning.trim()) return;
+    playSound('pop');
+    speakEnglish(englishMeaning.trim(), 'normal');
   };
 
   // Filter words
@@ -170,7 +262,9 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
       !q ||
       w.french.toLowerCase().includes(q) ||
       w.arabicMeaning.toLowerCase().includes(q) ||
-      w.arabicPhonetic.toLowerCase().includes(q);
+      (w.englishMeaning && w.englishMeaning.toLowerCase().includes(q)) ||
+      w.arabicPhonetic.toLowerCase().includes(q) ||
+      (w.englishPhonetic && w.englishPhonetic.toLowerCase().includes(q));
 
     const matchesCategory =
       selectedCategory === 'all' || w.category === selectedCategory;
@@ -178,12 +272,16 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
     const matchesMastered =
       filterMastered === 'all'
         ? true
+        : filterMastered === 'primary'
+        ? !!w.isPrimarySchool
         : filterMastered === 'mastered'
         ? w.isMastered
         : filterMastered === 'unmastered'
         ? !w.isMastered
         : filterMastered === 'favorite'
         ? w.isFavorite
+        : filterMastered.startsWith('group:')
+        ? !!groups.find((g) => g.id === filterMastered.replace('group:', ''))?.wordIds.includes(w.id)
         : true;
 
     return matchesSearch && matchesCategory && matchesMastered;
@@ -196,13 +294,13 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
         <div className="space-y-1 text-center md:text-right">
           <div className="inline-flex items-center gap-1.5 bg-indigo-500/30 px-3 py-1 rounded-full text-xs font-semibold text-indigo-300">
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-            <span>إدارة وتعديل الفهرس المدرسي</span>
+            <span>فهرس الكلمات متعدد اللغات (فرنسي وإنجليزي)</span>
           </div>
           <h2 className="text-2xl md:text-3xl font-black">
-            فهرس كلمات اللغة الفرنسية والمعاني العربية 📋
+            فهرس كلمات الفرنسية والإنجليزية 📋
           </h2>
           <p className="text-xs text-slate-300 max-w-xl">
-            يمكنكِ هنا تعديل أي كلمة موجودة، إضافة كلمات جديدة مع نطقها ومعناها، أو طباعة الفهرس للدراسة الورقية!
+            يمكنكِ إضافة كلمات جديدة بالإنجليزية أو بالفرنسية، تعديل النطق الصوتي والمقاطع، أو تجربة الاستماع لأي كلمة باللغتين!
           </p>
         </div>
 
@@ -212,27 +310,27 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
             className="px-5 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-md shadow-indigo-300 flex items-center gap-2 cursor-pointer transition-all active:scale-95"
           >
             <Plus className="w-4 h-4" />
-            <span>إضافة كلمة جديدة</span>
+            <span>{t.addWordBtn}</span>
           </button>
 
           <button
             onClick={() => window.print()}
             className="px-4 py-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white font-bold text-sm border border-white/20 flex items-center gap-2 cursor-pointer transition-all"
-            title="طباعة قائمة الكلمات"
+            title="Print list"
           >
             <Printer className="w-4 h-4" />
-            <span>طباعة</span>
+            <span>{t.printBtn}</span>
           </button>
 
           <button
             onClick={() => {
-              if (confirm('هل ترغبين باستعادة قائمة الكلمات الأصلية العشرين الموجودة في ورقة الدرس؟')) {
+              if (confirm('هل ترغبين باستعادة قائمة الكلمات الأصلية؟')) {
                 onResetDefaults();
                 playSound('celebration');
               }
             }}
             className="p-3 rounded-2xl bg-white/10 hover:bg-white/20 text-white text-xs border border-white/20 cursor-pointer"
-            title="استعادة الكلمات العشرين الافتراضية للدرس"
+            title="Restore original words"
           >
             <RotateCcw className="w-4 h-4" />
           </button>
@@ -249,7 +347,7 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="ابحثي بالفرنسية أو بالعربية أو بالنطق..."
+              placeholder="ابحثي بالفرنسية، الإنجليزية، أو العربية..."
               className="w-full pr-12 pl-4 py-3 rounded-2xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none text-sm transition-all"
             />
             {searchQuery && (
@@ -269,11 +367,11 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
               onChange={(e) => setSelectedCategory(e.target.value)}
               className="w-full md:w-auto px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 font-bold text-xs outline-none cursor-pointer"
             >
-              <option value="all">كل التصنيفات (Tous)</option>
-              <option value="noun">أسماء (Noms)</option>
-              <option value="verb">أفعال (Verbes)</option>
-              <option value="adjective">صفات (Adjectifs)</option>
-              <option value="adverb">ظروف (Adverbes)</option>
+              <option value="all">{t.allCategories}</option>
+              <option value="noun">أسماء (Noms / Nouns)</option>
+              <option value="verb">أفعال (Verbes / Verbs)</option>
+              <option value="adjective">صفات (Adjectifs / Adjectives)</option>
+              <option value="adverb">ظروف (Adverbes / Adverbs)</option>
               <option value="expression">تعبيرات (Expressions)</option>
             </select>
           </div>
@@ -285,26 +383,122 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
               onChange={(e) => setFilterMastered(e.target.value)}
               className="w-full md:w-auto px-4 py-3 rounded-2xl border border-slate-200 bg-slate-50 text-slate-700 font-bold text-xs outline-none cursor-pointer"
             >
-              <option value="all">كل الحالات (Statut)</option>
-              <option value="mastered">المتقنة فقط ⭐</option>
-              <option value="unmastered">قيد التعلم ⏳</option>
-              <option value="favorite">المفضلة فقط 🔖</option>
+              <option value="all">{t.allStatuses}</option>
+              <option value="primary">🎒 كلمات الابتدائي (Primary)</option>
+              <option value="mastered">{t.masteredOnly}</option>
+              <option value="unmastered">{t.learningOnly}</option>
+              <option value="favorite">{t.favoritesOnly}</option>
+              {groups.length > 0 && (
+                <optgroup label="📂 المجموعات المخصصة">
+                  {groups.map((g) => (
+                    <option key={g.id} value={`group:${g.id}`}>
+                      {g.icon} {g.name} ({g.wordIds.length})
+                    </option>
+                  ))}
+                </optgroup>
+              )}
             </select>
           </div>
         </div>
 
-        {/* Counter */}
-        <div className="flex items-center justify-between text-xs text-slate-500 pt-1 border-t border-slate-100">
-          <span>
-            عرض <span className="font-bold text-indigo-600">{filteredWords.length}</span> من أصل <span className="font-bold text-slate-800">{words.length}</span> كلمة
-          </span>
-          {words.some((w) => w.isMastered) && (
-            <span className="text-emerald-700 font-bold">
-              ✓ تم إتقان {words.filter((w) => w.isMastered).length} كلمة
+        {/* Counter and Multi-Select Toggle */}
+        <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-2">
+            <span>
+              عرض <span className="font-bold text-indigo-600">{filteredWords.length}</span> من أصل <span className="font-bold text-slate-800">{words.length}</span> كلمة
             </span>
-          )}
+            {words.some((w) => w.isMastered) && (
+              <span className="text-emerald-700 font-bold hidden sm:inline">
+                • ✓ أُتقنت {words.filter((w) => w.isMastered).length}
+              </span>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              playSound('pop');
+              setIsSelectionMode(!isSelectionMode);
+            }}
+            className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer ${
+              isSelectionMode || selectedForBatchGroup.length > 0
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700'
+            }`}
+          >
+            <FolderPlus className="w-3.5 h-3.5" />
+            <span>
+              {isSelectionMode || selectedForBatchGroup.length > 0
+                ? `وضع التحديد (${selectedForBatchGroup.length} محددة)`
+                : 'تحديد كلمات لمجموعة 📂'}
+            </span>
+          </button>
         </div>
       </div>
+
+      {/* Floating / Sticky Batch Action Bar when words are selected or selection mode is active */}
+      {(isSelectionMode || selectedForBatchGroup.length > 0) && (
+        <div className="bg-gradient-to-r from-indigo-900 to-indigo-950 text-white rounded-2xl p-4 shadow-lg border border-indigo-700 flex flex-col md:flex-row items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-2 text-sm font-bold">
+            <span className="p-1.5 bg-indigo-500/30 rounded-lg text-amber-300">
+              <CheckSquare className="w-4 h-4" />
+            </span>
+            <span>
+              تم اختيار <span className="text-amber-300 font-black text-base">{selectedForBatchGroup.length}</span> كلمة
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+            <button
+              onClick={handleSelectAllFiltered}
+              className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold transition-all cursor-pointer"
+            >
+              تحديد كل المعروض ({filteredWords.length})
+            </button>
+
+            {selectedForBatchGroup.length > 0 && (
+              <button
+                onClick={handleClearSelection}
+                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold text-rose-200 transition-all cursor-pointer"
+              >
+                إلغاء التحديد
+              </button>
+            )}
+
+            {/* Add to Existing Group Dropdown */}
+            {groups.length > 0 && selectedForBatchGroup.length > 0 && (
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    handleAddSelectedToExistingGroup(e.target.value);
+                    e.target.value = '';
+                  }
+                }}
+                defaultValue=""
+                className="px-3 py-1.5 rounded-xl bg-indigo-800 text-white text-xs font-bold border border-indigo-600 outline-none cursor-pointer"
+              >
+                <option value="" disabled>
+                  + إضافة إلى مجموعة...
+                </option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    {g.icon} {g.name}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            <button
+              disabled={selectedForBatchGroup.length === 0}
+              onClick={handleCreateGroupWithSelected}
+              className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-indigo-950 text-xs font-black shadow-md flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+            >
+              <FolderPlus className="w-4 h-4" />
+              <span>إنشاء مجموعة جديدة بالكلمات 🌟</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Words Table / List Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -312,46 +506,101 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
           <div
             key={word.id}
             className={`bg-white rounded-2xl p-5 border-2 transition-all space-y-4 hover:shadow-md ${
-              word.isMastered ? 'border-emerald-200 bg-emerald-50/10' : 'border-slate-200 hover:border-indigo-200'
+              selectedForBatchGroup.includes(word.id)
+                ? 'border-indigo-500 ring-2 ring-indigo-200 bg-indigo-50/15'
+                : word.isMastered
+                ? 'border-emerald-200 bg-emerald-50/10'
+                : 'border-slate-200 hover:border-indigo-200'
             }`}
           >
             {/* Top row */}
             <div className="flex items-start justify-between gap-3">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold text-slate-400">
-                    #{word.orderNumber}
-                  </span>
-                  <span className="text-[11px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
-                    {word.categoryLabelAr}
-                  </span>
-                  {word.isMastered && (
-                    <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" />
-                      متقنة
-                    </span>
+              <div className="flex items-start gap-2.5">
+                {/* Select checkbox */}
+                <button
+                  type="button"
+                  onClick={() => toggleWordSelection(word.id)}
+                  className={`mt-0.5 p-1.5 rounded-xl border transition-all cursor-pointer ${
+                    selectedForBatchGroup.includes(word.id)
+                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
+                      : 'border-slate-200 text-slate-300 hover:border-indigo-400 hover:text-indigo-600 bg-slate-50'
+                  }`}
+                  title={selectedForBatchGroup.includes(word.id) ? 'إلغاء التحديد' : 'تحديد الكلمة للمجموعة'}
+                >
+                  {selectedForBatchGroup.includes(word.id) ? (
+                    <CheckSquare className="w-4 h-4 text-white" />
+                  ) : (
+                    <Square className="w-4 h-4" />
                   )}
-                </div>
+                </button>
 
-                <div className="flex items-center gap-2">
-                  <h3 className="text-2xl font-french font-bold text-slate-900" dir="ltr">
-                    {word.french}
-                  </h3>
-                  <button
-                    onClick={() => {
-                      playSound('pop');
-                      speakFrench(word.french, 'normal');
-                    }}
-                    className="p-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-600 cursor-pointer transition-colors"
-                    title="استمع للنطق"
-                  >
-                    <Volume2 className="w-4 h-4" />
-                  </button>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-slate-400">
+                      #{word.orderNumber}
+                    </span>
+                    <span className="text-[11px] font-semibold bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
+                      {word.categoryLabelAr} • {word.categoryLabelEn || 'Noun'}
+                    </span>
+                    {word.isMastered && (
+                      <span className="text-[10px] font-bold bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        {t.mastered}
+                      </span>
+                    )}
+                  </div>
+
+                {/* French & English titles with speech buttons */}
+                <div className="space-y-1 pt-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-indigo-500">🇫🇷</span>
+                    <h3 className="text-2xl font-french font-bold text-slate-900" dir="ltr">
+                      {word.french}
+                    </h3>
+                    <button
+                      onClick={() => {
+                        playSound('pop');
+                        speakFrench(word.french, 'normal');
+                      }}
+                      className="p-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 cursor-pointer"
+                      title="استمع للفرنسية"
+                    >
+                      <Volume2 className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-blue-500">🇬🇧</span>
+                    <h4 className="text-xl font-french font-bold text-blue-900" dir="ltr">
+                      {word.englishMeaning}
+                    </h4>
+                    <button
+                      onClick={() => {
+                        playSound('pop');
+                        speakEnglish(word.englishMeaning, 'normal');
+                      }}
+                      className="p-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600 cursor-pointer"
+                      title="Listen to English"
+                    >
+                      <Volume2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              {/* Action buttons */}
+            {/* Action buttons */}
               <div className="flex items-center gap-1">
+                {onToggleWordInGroup && onOpenCreateGroupModal && (
+                  <WordGroupDropdown
+                    wordId={word.id}
+                    groups={groups}
+                    onToggleWordInGroup={onToggleWordInGroup}
+                    onOpenCreateGroupModal={() => onOpenCreateGroupModal(null)}
+                    appLang={appLang}
+                  />
+                )}
+
                 <button
                   onClick={() => onToggleFavorite(word.id)}
                   className={`p-2 rounded-xl border transition-all ${
@@ -359,7 +608,7 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
                       ? 'bg-amber-100 border-amber-300 text-amber-800'
                       : 'border-slate-200 text-slate-400 hover:text-slate-600'
                   }`}
-                  title="المفضلة"
+                  title="Bookmark"
                 >
                   <Bookmark className="w-3.5 h-3.5" />
                 </button>
@@ -367,73 +616,62 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
                 <button
                   onClick={() => openEditModal(word)}
                   className="p-2 rounded-xl border border-slate-200 text-indigo-600 hover:bg-indigo-50 transition-colors"
-                  title="تعديل بيانات الكلمة"
+                  title="تعديل الكلمة"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                 </button>
 
                 <button
                   onClick={() => {
-                    if (confirm(`هل أنتِ متأكدة من حذف الكلمة (${word.french}) من الفهرس؟`)) {
+                    if (confirm(`هل أنتِ متأكدة من حذف (${word.french} / ${word.englishMeaning})؟`)) {
                       onDeleteWord(word.id);
                       playSound('click');
                     }
                   }}
                   className="p-2 rounded-xl border border-slate-200 text-rose-500 hover:bg-rose-50 transition-colors"
-                  title="حذف الكلمة"
+                  title="حذف"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
-            {/* Arabic meaning & Phonetics */}
+            {/* Meanings & Phonetics */}
             <div className="space-y-1.5 bg-slate-50 rounded-xl p-3">
               <div className="text-base font-bold text-indigo-950">
                 {word.arabicMeaning}
               </div>
-              <div className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-amber-800 font-bold bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg">
-                  نطق: {word.arabicPhonetic}
+              <div className="flex flex-wrap items-center gap-2 text-xs pt-1">
+                <span className="text-indigo-800 font-bold bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-lg">
+                  نطق فرنسي: {word.arabicPhonetic}
                 </span>
-                <span className="text-slate-500 font-mono text-[11px]" dir="ltr">
-                  {word.ipa}
-                </span>
+                {word.englishArabicPhonetic && (
+                  <span className="text-blue-800 font-bold bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-lg">
+                    نطق إنجليزي: {word.englishArabicPhonetic}
+                  </span>
+                )}
               </div>
             </div>
 
-            {/* Syllables & Tip Snippet */}
+            {/* Syllables */}
             <div className="text-xs space-y-1 text-slate-600">
               <div className="flex items-center gap-1">
-                <span className="font-bold text-slate-500">المقاطع:</span>
+                <span className="font-bold text-slate-500">مقاطع فرنسية:</span>
                 <span className="font-french font-semibold text-indigo-700" dir="ltr">
                   {word.syllables.join(' • ')}
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 line-clamp-1">
-                💡 {word.pronunciationTip}
-              </p>
+              {word.englishSyllables && (
+                <div className="flex items-center gap-1">
+                  <span className="font-bold text-slate-500">مقاطع إنجليزية:</span>
+                  <span className="font-french font-semibold text-blue-700" dir="ltr">
+                    {word.englishSyllables.join(' • ')}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         ))}
-
-        {filteredWords.length === 0 && (
-          <div className="col-span-full bg-white rounded-3xl p-12 text-center border-2 border-dashed border-slate-200 space-y-3">
-            <p className="text-slate-500 font-bold text-base">
-              لم نعثر على أي كلمات مطابقة لبحثكِ!
-            </p>
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedCategory('all');
-                setFilterMastered('all');
-              }}
-              className="text-xs text-indigo-600 hover:underline font-bold"
-            >
-              إلغاء فلاتر البحث وعرض كل الكلمات
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Add / Edit Word Modal */}
@@ -448,10 +686,10 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
                 </div>
                 <div>
                   <h3 className="text-xl font-black text-slate-900">
-                    {editingWord ? 'تعديل بيانات الكلمة' : 'إضافة كلمة جديدة إلى الفهرس'}
+                    {editingWord ? 'تعديل بيانات الكلمة' : 'إضافة كلمة جديدة (فرنسي / إنجليزي)'}
                   </h3>
                   <p className="text-xs text-slate-500">
-                    أدخلي الكلمة بالفرنسية مع معناها وطريقة نطقها بالعربية
+                    أدخلي الكلمة مع إمكانية تجربة النطق الصوتي فوراً بالفرنسية والإنجليزية
                   </p>
                 </div>
               </div>
@@ -465,30 +703,56 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleFormSubmit} className="space-y-4 text-right">
-              {/* French Word */}
+            <form onSubmit={handleFormSubmit} className="space-y-4">
+              {/* French Word with Audio Test */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 block">
-                  الكلمة باللغة الفرنسية (Mot en français) *
+                  الكلمة بالفرنسية (French Word)
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     dir="ltr"
-                    required
                     value={french}
                     onChange={(e) => setFrench(e.target.value)}
-                    placeholder="Ex: papillon, maison, chanter..."
+                    placeholder="Ex: papillon, bonjour..."
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 font-french font-bold text-lg outline-none"
                   />
                   {french.trim() && (
                     <button
                       type="button"
-                      onClick={handleTestAudio}
+                      onClick={handleTestAudioFrench}
                       className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1 cursor-pointer"
                     >
                       <Volume2 className="w-3.5 h-3.5" />
-                      <span>تجربة النطق</span>
+                      <span>صوت فرنسي 🇫🇷</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* English Word with Audio Test */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  الكلمة بالإنجليزية (English Word)
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={englishMeaning}
+                    onChange={(e) => setEnglishMeaning(e.target.value)}
+                    placeholder="Ex: butterfly, hello, neighbor..."
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-french font-bold text-lg outline-none"
+                  />
+                  {englishMeaning.trim() && (
+                    <button
+                      type="button"
+                      onClick={handleTestAudioEnglish}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <Volume2 className="w-3.5 h-3.5" />
+                      <span>صوت إنجليزي 🇬🇧</span>
                     </button>
                   )}
                 </div>
@@ -504,36 +768,66 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
                   required
                   value={arabicMeaning}
                   onChange={(e) => setArabicMeaning(e.target.value)}
-                  placeholder="مثال: فراشة، بيت، يغني..."
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 font-bold text-slate-800 outline-none text-sm"
+                  placeholder="مثال: فراشة، مرحباً، جار..."
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none text-sm font-semibold"
                 />
               </div>
 
-              {/* Arabic Phonetics & Syllables */}
+              {/* Arabic Phonetics for both */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-700 block">
-                    النطق التقريبي بالعربي (مع الحركات)
+                    نطق الفرنسي بالعربي (شِيرْ)
                   </label>
                   <input
                     type="text"
                     value={arabicPhonetic}
                     onChange={(e) => setArabicPhonetic(e.target.value)}
                     placeholder="مثال: بَا-بِي-يُونْ"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none text-sm font-semibold"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none text-sm"
                   />
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-700 block">
-                    المقاطع الصوتية (مفصولة بمسافة أو شرطة)
+                    نطق الإنجليزي بالعربي (بَاتَرْفْلَاي)
+                  </label>
+                  <input
+                    type="text"
+                    value={englishArabicPhonetic}
+                    onChange={(e) => setEnglishArabicPhonetic(e.target.value)}
+                    placeholder="مثال: نِيبُورْ"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Syllables inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    مقاطع الفرنسية (pa - pil - lon)
                   </label>
                   <input
                     type="text"
                     dir="ltr"
                     value={syllablesInput}
                     onChange={(e) => setSyllablesInput(e.target.value)}
-                    placeholder="Ex: pa - pil - lon"
+                    placeholder="pa - pil - lon"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none text-sm font-french"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    مقاطع الإنجليزية (neigh - bor)
+                  </label>
+                  <input
+                    type="text"
+                    dir="ltr"
+                    value={englishSyllablesInput}
+                    onChange={(e) => setEnglishSyllablesInput(e.target.value)}
+                    placeholder="but - ter - fly"
                     className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none text-sm font-french"
                   />
                 </div>
@@ -542,56 +836,19 @@ export const VocabularyManager: React.FC<VocabularyManagerProps> = ({
               {/* Category */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-700 block">
-                  نوع الكلمة (Catégorie grammaticale)
+                  نوع الكلمة (Catégorie)
                 </label>
                 <select
                   value={category}
                   onChange={(e) => handleCategoryChange(e.target.value as WordCategory)}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 font-bold text-xs outline-none"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 font-bold text-xs outline-none"
                 >
-                  <option value="noun">اسم (Nom)</option>
-                  <option value="verb">فعل (Verbe)</option>
-                  <option value="adjective">صفة (Adjectif)</option>
-                  <option value="adverb">ظرف (Adverbe)</option>
-                  <option value="expression">تعبير مركب (Expression)</option>
-                  <option value="preposition">حرف جر (Préposition)</option>
+                  <option value="noun">اسم (Noun / Nom)</option>
+                  <option value="verb">فعل (Verb / Verbe)</option>
+                  <option value="adjective">صفة (Adjective / Adjectif)</option>
+                  <option value="adverb">ظرف (Adverb / Adverbe)</option>
+                  <option value="expression">تعبير (Expression)</option>
                 </select>
-              </div>
-
-              {/* Pronunciation Tip */}
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-slate-700 block">
-                  سر ونصيحة الأستاذ لنطق الكلمة بسهولة
-                </label>
-                <textarea
-                  rows={2}
-                  value={pronunciationTip}
-                  onChange={(e) => setPronunciationTip(e.target.value)}
-                  placeholder="مثال: انتبهي، حرف الـ ill ينطق مثل الياء المشددة..."
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:border-indigo-500 outline-none text-xs leading-relaxed"
-                />
-              </div>
-
-              {/* Example in French & Arabic */}
-              <div className="space-y-2 bg-slate-50 p-3 rounded-2xl border border-slate-200/70">
-                <span className="text-[11px] font-bold text-slate-600 block">
-                  مثال في جملة مفيدة (اختياري لكن مفيد جداً):
-                </span>
-                <input
-                  type="text"
-                  dir="ltr"
-                  value={exampleFrench}
-                  onChange={(e) => setExampleFrench(e.target.value)}
-                  placeholder="Ex: Le papillon vole dans le jardin."
-                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-french"
-                />
-                <input
-                  type="text"
-                  value={exampleArabic}
-                  onChange={(e) => setExampleArabic(e.target.value)}
-                  placeholder="ترجمة الجملة: الفراشة تطير في الحديقة."
-                  className="w-full px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs"
-                />
               </div>
 
               {/* Modal Buttons */}

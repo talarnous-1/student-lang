@@ -1,18 +1,20 @@
 import React from 'react';
-import { X, Volume2, Sparkles, BookOpen, CheckCircle, Printer } from 'lucide-react';
-import { VocabularyWord } from '../types';
+import { X, Volume2, Sparkles, BookOpen, Printer } from 'lucide-react';
+import { VocabularyWord, AppLanguage } from '../types';
 import { speakFrench, playSound } from '../utils/audio';
 
 interface OriginalSheetModalProps {
   isOpen: boolean;
   onClose: () => void;
   words: VocabularyWord[];
+  appLang: AppLanguage;
 }
 
 export const OriginalSheetModal: React.FC<OriginalSheetModalProps> = ({
   isOpen,
   onClose,
   words,
+  appLang,
 }) => {
   if (!isOpen) return null;
 
@@ -32,10 +34,14 @@ export const OriginalSheetModal: React.FC<OriginalSheetModalProps> = ({
             </div>
             <div>
               <h2 className="text-xl sm:text-2xl font-black text-slate-900">
-                ورقة الدرس الأصلية: Compréhension orale (النص الأول)
+                {appLang === 'en'
+                  ? 'Original Worksheet: Compréhension orale (Text 1)'
+                  : 'ورقة الدرس الأصلية: Compréhension orale (النص الأول)'}
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                مطابقة طبق الأصل للورقة المرفقة مع إمكانية الاستماع الفوري لأي كلمة
+                {appLang === 'en'
+                  ? 'Exact interactive replica of the uploaded lesson paper with one-click audio pronunciation'
+                  : 'مطابقة طبق الأصل للورقة المرفقة مع إمكانية الاستماع الفوري لأي كلمة'}
               </p>
             </div>
           </div>
@@ -44,7 +50,7 @@ export const OriginalSheetModal: React.FC<OriginalSheetModalProps> = ({
             <button
               onClick={() => window.print()}
               className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors"
-              title="طباعة الورقة"
+              title="Print"
             >
               <Printer className="w-5 h-5" />
             </button>
@@ -65,7 +71,7 @@ export const OriginalSheetModal: React.FC<OriginalSheetModalProps> = ({
               Compréhension orale
             </div>
             <div className="text-base text-indigo-900">
-              النص الأول (الوحدة المدرسية)
+              {appLang === 'en' ? 'First Lesson (Unit 1)' : 'النص الأول (الوحدة المدرسية)'}
             </div>
           </div>
 
@@ -73,7 +79,11 @@ export const OriginalSheetModal: React.FC<OriginalSheetModalProps> = ({
           <div className="bg-amber-100/60 border border-amber-300 rounded-xl p-3 text-xs text-amber-900 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 font-bold">
               <Sparkles className="w-4 h-4 text-amber-600" />
-              <span>ملاحظات الأستاذ المكتوبة على هامش الورقة:</span>
+              <span>
+                {appLang === 'en'
+                  ? "Teacher's handwritten margin notes:"
+                  : 'ملاحظات الأستاذ المكتوبة على هامش الورقة:'}
+              </span>
             </div>
             <div className="font-semibold text-amber-800">
               «بارك الله جهودكِ.. لا تنسي التدقيق والتكرار الصوتي.. الزمان كفيل بالتفوق بالمثابرة»
@@ -85,10 +95,19 @@ export const OriginalSheetModal: React.FC<OriginalSheetModalProps> = ({
             <table className="w-full text-right border-collapse border border-slate-300 text-sm">
               <thead>
                 <tr className="bg-slate-100 text-slate-800 font-black">
-                  <th className="border border-slate-300 p-2.5 w-14 text-center">#</th>
-                  <th className="border border-slate-300 p-2.5 text-left font-french">الكلمة بالفرنسية</th>
-                  <th className="border border-slate-300 p-2.5">المعنى بالعربية</th>
-                  <th className="border border-slate-300 p-2.5 text-center w-24">اللفظ الصوتي</th>
+                  <th className="border border-slate-300 p-2.5 w-12 text-center">#</th>
+                  <th className="border border-slate-300 p-2.5 text-left font-french">
+                    {appLang === 'en' ? 'French Word' : 'الكلمة بالفرنسية'}
+                  </th>
+                  <th className="border border-slate-300 p-2.5">
+                    {appLang === 'en' ? 'Arabic Meaning' : 'المعنى بالعربية'}
+                  </th>
+                  <th className="border border-slate-300 p-2.5 text-left font-french">
+                    English Meaning
+                  </th>
+                  <th className="border border-slate-300 p-2.5 text-center w-24">
+                    {appLang === 'en' ? 'Audio' : 'اللفظ الصوتي'}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -106,13 +125,16 @@ export const OriginalSheetModal: React.FC<OriginalSheetModalProps> = ({
                     <td className="border border-slate-300 p-2 font-bold text-slate-800">
                       {w.arabicMeaning}
                     </td>
+                    <td className="border border-slate-300 p-2 font-medium text-emerald-900 font-french text-left" dir="ltr">
+                      {w.englishMeaning}
+                    </td>
                     <td className="border border-slate-300 p-2 text-center">
                       <button
                         onClick={() => handlePlayWord(w.french)}
                         className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold cursor-pointer transition-all active:scale-95"
                       >
                         <Volume2 className="w-3.5 h-3.5" />
-                        <span>نطق</span>
+                        <span>{appLang === 'en' ? 'Play' : 'نطق'}</span>
                       </button>
                     </td>
                   </tr>
@@ -124,12 +146,16 @@ export const OriginalSheetModal: React.FC<OriginalSheetModalProps> = ({
 
         {/* Footer */}
         <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
-          <span>نصيحة المعلم: كرري الاستماع مرتين لكل كلمة لترسيخ اللفظ الصحيح في الذاكرة.</span>
+          <span>
+            {appLang === 'en'
+              ? 'Tutor tip: Listen twice to every word to cement proper pronunciation in memory.'
+              : 'نصيحة المعلم: كرري الاستماع مرتين لكل كلمة لترسيخ اللفظ الصحيح في الذاكرة.'}
+          </span>
           <button
             onClick={onClose}
             className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs cursor-pointer"
           >
-            إغلاق العرض
+            {appLang === 'en' ? 'Close' : 'إغلاق العرض'}
           </button>
         </div>
       </div>

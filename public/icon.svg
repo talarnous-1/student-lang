@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" />
+      <stop offset="50%" stop-color="#7c3aed" />
+      <stop offset="100%" stop-color="#ec4899" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24" />
+      <stop offset="100%" stop-color="#f59e0b" />
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Background rounded card -->
+  <rect width="512" height="512" rx="120" fill="url(#bgGrad)" />
+
+  <!-- Inner white circular pad -->
+  <circle cx="256" cy="240" r="160" fill="#ffffff" filter="url(#shadow)" opacity="0.95"/>
+
+  <!-- Open Book Graphic -->
+  <path d="M160 270 C200 250, 240 255, 256 270 C272 255, 312 250, 352 270 L352 190 C312 170, 272 175, 256 190 C240 175, 200 170, 160 190 Z" fill="#6366f1" />
+  <path d="M256 190 L256 270" stroke="#4338ca" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Star Badge on top -->
+  <polygon points="256,120 268,154 304,154 275,175 286,209 256,188 226,209 237,175 208,154 244,154" fill="url(#goldGrad)" filter="url(#shadow)"/>
+
+  <!-- Cute sound / speech waves -->
+  <path d="M370 210 Q390 230 370 250" stroke="#f59e0b" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <path d="M142 210 Q122 230 142 250" stroke="#f59e0b" stroke-width="8" stroke-linecap="round" fill="none"/>
+
+  <!-- Text / Bilingual flags pill -->
+  <rect x="156" y="325" width="200" height="52" rx="26" fill="#1e1b4b"/>
+  <text x="256" y="360" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="800" fill="#38bdf8" text-anchor="middle" letter-spacing="2">
+    FR 🇫🇷 EN 🇬🇧
+  </text>
+</svg>

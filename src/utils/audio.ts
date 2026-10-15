@@ -1,3 +1,5 @@
+import { VocabularyWord, TrainingLanguage } from '../types';
+
 /**
  * Audio and Speech Synthesis & Recognition utilities
  */
@@ -19,7 +21,7 @@ function getAudioContext(): AudioContext | null {
   return audioCtx;
 }
 
-export function playSound(type: 'correct' | 'wrong' | 'celebration' | 'click' | 'pop') {
+export function playSound(type: 'correct' | 'wrong' | 'celebration' | 'click' | 'pop' | 'bell' | 'success') {
   try {
     const ctx = getAudioContext();
     if (!ctx) return;
@@ -94,14 +96,42 @@ export function playSound(type: 'correct' | 'wrong' | 'celebration' | 'click' | 
       gain.connect(ctx.destination);
       osc.start(now);
       osc.stop(now + 0.08);
+    } else if (type === 'bell' || type === 'success') {
+      // Pleasant bell chime
+      [587.33, 880].forEach((freq, idx) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, now + idx * 0.1);
+        gain.gain.setValueAtTime(0, now + idx * 0.1);
+        gain.gain.linearRampToValueAtTime(0.2, now + idx * 0.1 + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.1 + 0.4);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + idx * 0.1);
+        osc.stop(now + idx * 0.1 + 0.4);
+      });
     }
   } catch {
     // Ignore audio errors gracefully
   }
 }
 
+export async function speakVocabularyWord(
+  word: VocabularyWord,
+  trainingLang: TrainingLanguage,
+  speed: 'normal' | 'slow' = 'normal'
+): Promise<void> {
+  if (trainingLang === 'en') {
+    return speakEnglish(word.englishMeaning, speed);
+  } else {
+    return speakFrench(word.french, speed);
+  }
+}
+
 let cachedFrenchVoice: SpeechSynthesisVoice | null = null;
 let cachedArabicVoice: SpeechSynthesisVoice | null = null;
+let cachedEnglishVoice: SpeechSynthesisVoice | null = null;
 
 function loadVoices(): Promise<SpeechSynthesisVoice[]> {
   return new Promise((resolve) => {
@@ -140,6 +170,14 @@ export async function getArabicVoice(): Promise<SpeechSynthesisVoice | null> {
   const ar = voices.find(v => v.lang.startsWith('ar'));
   cachedArabicVoice = ar || null;
   return cachedArabicVoice;
+}
+
+export async function getEnglishVoice(): Promise<SpeechSynthesisVoice | null> {
+  if (cachedEnglishVoice) return cachedEnglishVoice;
+  const voices = await loadVoices();
+  const en = voices.find(v => v.lang.startsWith('en-US') || v.lang.startsWith('en-GB')) || voices.find(v => v.lang.startsWith('en'));
+  cachedEnglishVoice = en || null;
+  return cachedEnglishVoice;
 }
 
 export function cleanFrenchForSpeech(text: string): string {
@@ -188,6 +226,48 @@ export async function speakArabic(text: string): Promise<void> {
     utterance.onerror = () => resolve();
     window.speechSynthesis.speak(utterance);
   });
+}
+
+export async function speakEnglish(text: string, speed: 'normal' | 'slow' = 'normal'): Promise<void> {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(text);
+  utterance.lang = 'en-US';
+  utterance.rate = speed === 'slow' ? 0.65 : 0.95;
+  utterance.pitch = 1.05;
+
+  const voice = await getEnglishVoice();
+  if (voice) {
+    utterance.voice = voice;
+  }
+
+  return new Promise((resolve) => {
+    utterance.onend = () => resolve();
+    utterance.onerror = () => resolve();
+    window.speechSynthesis.speak(utterance);
+  });
+}
+
+export async function speakEnglishSyllables(syllables: string[]): Promise<void> {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+
+  const voice = await getEnglishVoice();
+  
+  for (const syll of syllables) {
+    if (syll === '—') continue;
+    await new Promise<void>((resolve) => {
+      const utterance = new SpeechSynthesisUtterance(syll);
+      utterance.lang = 'en-US';
+      utterance.rate = 0.65;
+      utterance.pitch = 1.1;
+      if (voice) utterance.voice = voice;
+      utterance.onend = () => setTimeout(resolve, 280);
+      utterance.onerror = () => resolve();
+      window.speechSynthesis.speak(utterance);
+    });
+  }
 }
 
 export async function speakSyllables(syllables: string[]): Promise<void> {

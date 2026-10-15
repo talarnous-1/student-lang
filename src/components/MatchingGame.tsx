@@ -1,27 +1,38 @@
 import React, { useState, useEffect } from 'react';
 import { Sparkles, RotateCcw, Volume2, Trophy, Clock, CheckCircle2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
-import { VocabularyWord } from '../types';
-import { speakFrench, playSound } from '../utils/audio';
+import { VocabularyWord, AppLanguage, TrainingLanguage } from '../types';
+import { UI_TEXT } from '../translations';
+import { speakFrench, speakEnglish, playSound } from '../utils/audio';
 
 interface MatchingGameProps {
   words: VocabularyWord[];
   onWordMastered: (id: string) => void;
+  appLang: AppLanguage;
+  trainingLang: TrainingLanguage;
 }
 
 interface GameCard {
   id: string;
   wordId: string;
-  type: 'french' | 'arabic';
+  type: 'target' | 'meaning';
   text: string;
   isMatched: boolean;
   phonetic?: string;
 }
 
-export const MatchingGame: React.FC<MatchingGameProps> = ({ words, onWordMastered }) => {
+export const MatchingGame: React.FC<MatchingGameProps> = ({
+  words,
+  onWordMastered,
+  appLang,
+  trainingLang,
+}) => {
+  const t = appLang === 'en' ? UI_TEXT.en : UI_TEXT.ar;
+  const isEnglishTrack = trainingLang === 'en';
+
   const [cards, setCards] = useState<GameCard[]>([]);
-  const [selectedFrench, setSelectedFrench] = useState<GameCard | null>(null);
-  const [selectedArabic, setSelectedArabic] = useState<GameCard | null>(null);
+  const [selectedTarget, setSelectedTarget] = useState<GameCard | null>(null);
+  const [selectedMeaning, setSelectedMeaning] = useState<GameCard | null>(null);
   const [moves, setMoves] = useState(0);
   const [seconds, setSeconds] = useState(0);
   const [isGameActive, setIsGameActive] = useState(false);
@@ -35,31 +46,33 @@ export const MatchingGame: React.FC<MatchingGameProps> = ({ words, onWordMastere
     const sliceWords = words.slice(offset, offset + BATCH_SIZE);
     const selectedWords = sliceWords.length >= 3 ? sliceWords : words.slice(0, BATCH_SIZE);
 
-    const frenchCards: GameCard[] = selectedWords.map((w) => ({
-      id: `fr-${w.id}`,
+    const targetCards: GameCard[] = selectedWords.map((w) => ({
+      id: `target-${w.id}`,
       wordId: w.id,
-      type: 'french',
-      text: w.french,
-      phonetic: w.arabicPhonetic,
+      type: 'target',
+      text: isEnglishTrack ? w.englishMeaning : w.french,
+      phonetic: isEnglishTrack
+        ? w.englishArabicPhonetic || w.englishMeaning
+        : w.arabicPhonetic,
       isMatched: false,
     }));
 
-    const arabicCards: GameCard[] = selectedWords.map((w) => ({
-      id: `ar-${w.id}`,
+    const meaningCards: GameCard[] = selectedWords.map((w) => ({
+      id: `meaning-${w.id}`,
       wordId: w.id,
-      type: 'arabic',
+      type: 'meaning',
       text: w.arabicMeaning,
       isMatched: false,
     }));
 
     // Shuffle both independently
     setCards([
-      ...frenchCards.sort(() => Math.random() - 0.5),
-      ...arabicCards.sort(() => Math.random() - 0.5),
+      ...targetCards.sort(() => Math.random() - 0.5),
+      ...meaningCards.sort(() => Math.random() - 0.5),
     ]);
 
-    setSelectedFrench(null);
-    setSelectedArabic(null);
+    setSelectedTarget(null);
+    setSelectedMeaning(null);
     setMoves(0);
     setSeconds(0);
     setIsGameActive(true);
@@ -68,7 +81,7 @@ export const MatchingGame: React.FC<MatchingGameProps> = ({ words, onWordMastere
 
   useEffect(() => {
     startNewGame(0);
-  }, [words]);
+  }, [words, trainingLang]);
 
   // Timer
   useEffect(() => {
@@ -84,47 +97,51 @@ export const MatchingGame: React.FC<MatchingGameProps> = ({ words, onWordMastere
 
     playSound('pop');
 
-    if (card.type === 'french') {
-      speakFrench(card.text, 'normal');
-      if (selectedFrench?.id === card.id) {
-        setSelectedFrench(null);
+    if (card.type === 'target') {
+      if (isEnglishTrack) {
+        speakEnglish(card.text, 'normal');
+      } else {
+        speakFrench(card.text, 'normal');
+      }
+      if (selectedTarget?.id === card.id) {
+        setSelectedTarget(null);
         return;
       }
-      setSelectedFrench(card);
+      setSelectedTarget(card);
 
-      // Check match if arabic already selected
-      if (selectedArabic) {
-        checkMatch(card, selectedArabic);
+      // Check match if meaning already selected
+      if (selectedMeaning) {
+        checkMatch(card, selectedMeaning);
       }
     } else {
-      if (selectedArabic?.id === card.id) {
-        setSelectedArabic(null);
+      if (selectedMeaning?.id === card.id) {
+        setSelectedMeaning(null);
         return;
       }
-      setSelectedArabic(card);
+      setSelectedMeaning(card);
 
-      // Check match if french already selected
-      if (selectedFrench) {
-        checkMatch(selectedFrench, card);
+      // Check match if target already selected
+      if (selectedTarget) {
+        checkMatch(selectedTarget, card);
       }
     }
   };
 
-  const checkMatch = (frCard: GameCard, arCard: GameCard) => {
+  const checkMatch = (tCard: GameCard, mCard: GameCard) => {
     setMoves((prev) => prev + 1);
 
-    if (frCard.wordId === arCard.wordId) {
+    if (tCard.wordId === mCard.wordId) {
       // Correct Match!
       playSound('correct');
       setCards((prev) =>
         prev.map((c) =>
-          c.wordId === frCard.wordId ? { ...c, isMatched: true } : c
+          c.wordId === tCard.wordId ? { ...c, isMatched: true } : c
         )
       );
-      onWordMastered(frCard.wordId);
+      onWordMastered(tCard.wordId);
 
-      setSelectedFrench(null);
-      setSelectedArabic(null);
+      setSelectedTarget(null);
+      setSelectedMeaning(null);
 
       // Check if all matched
       setTimeout(() => {
@@ -142,8 +159,8 @@ export const MatchingGame: React.FC<MatchingGameProps> = ({ words, onWordMastere
       // Mismatch
       playSound('wrong');
       setTimeout(() => {
-        setSelectedFrench(null);
-        setSelectedArabic(null);
+        setSelectedTarget(null);
+        setSelectedMeaning(null);
       }, 700);
     }
   };
@@ -160,36 +177,44 @@ export const MatchingGame: React.FC<MatchingGameProps> = ({ words, onWordMastere
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  const frenchColumnCards = cards.filter((c) => c.type === 'french');
-  const arabicColumnCards = cards.filter((c) => c.type === 'arabic');
+  const targetColumnCards = cards.filter((c) => c.type === 'target');
+  const meaningColumnCards = cards.filter((c) => c.type === 'meaning');
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Banner */}
-      <div className="bg-gradient-to-r from-pink-600 via-rose-600 to-amber-600 rounded-3xl p-6 text-white shadow-xl flex flex-wrap items-center justify-between gap-4">
+      <div className={`rounded-3xl p-6 text-white shadow-xl flex flex-wrap items-center justify-between gap-4 transition-colors ${
+        isEnglishTrack
+          ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-teal-600'
+          : 'bg-gradient-to-r from-pink-600 via-rose-600 to-amber-600'
+      }`}>
         <div className="space-y-1">
           <div className="inline-flex items-center gap-1.5 bg-white/20 px-3 py-0.5 rounded-full text-xs font-bold">
             <Sparkles className="w-3.5 h-3.5 text-yellow-200" />
-            <span>لعبة الذكاء والسرعة الفرنسية</span>
+            <span>{isEnglishTrack ? 'تحدي مطابقة الكلمات الإنجليزية' : t.gameBadge}</span>
           </div>
           <h2 className="text-2xl font-black">
-            صلي كل كلمة فرنسية بمعناها العربي الصحيح 🎯
+            {isEnglishTrack
+              ? 'صلي كل كلمة إنجليزية بمعناها العربي المناسب 🎯'
+              : t.gameTitle}
           </h2>
-          <p className="text-xs text-rose-100">
-            انقري على الكلمة الفرنسية لتسمعي نطقها العذب، ثم اختاري معناها بالعربي بأسرع وقت!
+          <p className="text-xs text-white/90">
+            {isEnglishTrack
+              ? 'انقري على الكلمة الإنجليزية لتسمعي نطقها ثم اختاري معناها بالعربي بأسرع وقت!'
+              : t.gameDesc}
           </p>
         </div>
 
         {/* Stats */}
-        <div className="flex items-center gap-4 bg-white/10 backdrop-blur-md px-5 py-2.5 rounded-2xl border border-white/20">
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3 bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/20">
+          <div className="flex items-center gap-1.5">
             <Clock className="w-4 h-4 text-amber-200" />
-            <span className="font-mono font-bold text-lg">{formatTime(seconds)}</span>
+            <span className="font-mono font-bold text-base">{formatTime(seconds)}</span>
           </div>
-          <div className="w-px h-6 bg-white/20"></div>
+          <div className="w-px h-5 bg-white/20"></div>
           <div className="text-xs font-bold">
-            <span>المحاولات: </span>
-            <span className="text-amber-200 text-sm">{moves}</span>
+            <span>{t.attempts} </span>
+            <span className="text-amber-200">{moves}</span>
           </div>
         </div>
       </div>
@@ -203,7 +228,7 @@ export const MatchingGame: React.FC<MatchingGameProps> = ({ words, onWordMastere
 
           <div className="space-y-2">
             <h3 className="text-3xl font-black text-slate-800">
-              أحسنتِ صنعاً يا أميرة الفرنسية! 🎉
+              {t.gameWonTitle}
             </h3>
             <p className="text-slate-600 text-base max-w-md mx-auto">
               أنجزتِ مطابقة جميع الكلمات في <span className="font-bold text-indigo-600">{formatTime(seconds)}</span> وبعدد محاولات <span className="font-bold text-indigo-600">{moves}</span>!
@@ -216,7 +241,7 @@ export const MatchingGame: React.FC<MatchingGameProps> = ({ words, onWordMastere
               className="px-6 py-3 rounded-2xl bg-white border-2 border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-sm flex items-center gap-2 cursor-pointer transition-all"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>إعادة هذه الجولة</span>
+              <span>{t.retryRound}</span>
             </button>
 
             <button
@@ -224,23 +249,23 @@ export const MatchingGame: React.FC<MatchingGameProps> = ({ words, onWordMastere
               className="px-8 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-200 flex items-center gap-2 cursor-pointer transition-all"
             >
               <Sparkles className="w-4 h-4" />
-              <span>جولة كلمات جديدة! 🚀</span>
+              <span>{t.newRound}</span>
             </button>
           </div>
         </div>
       ) : (
         /* Game Dual Grid */
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* French Column */}
+          {/* Target Column (French or English based on training track) */}
           <div className="space-y-3">
             <div className="bg-indigo-100/70 text-indigo-900 px-4 py-2 rounded-2xl text-xs font-bold flex items-center justify-between">
-              <span>الكلمات الفرنسية (En Français):</span>
+              <span>{isEnglishTrack ? 'الكلمات الإنجليزية (English Words):' : 'الكلمات الفرنسية (En Français):'}</span>
               <span className="text-[11px] text-indigo-600 font-medium">اضغطي للاستماع</span>
             </div>
 
             <div className="space-y-2.5">
-              {frenchColumnCards.map((card) => {
-                const isSelected = selectedFrench?.id === card.id;
+              {targetColumnCards.map((card) => {
+                const isSelected = selectedTarget?.id === card.id;
                 return (
                   <button
                     key={card.id}
@@ -270,7 +295,7 @@ export const MatchingGame: React.FC<MatchingGameProps> = ({ words, onWordMastere
                               isSelected ? 'text-indigo-100' : 'text-amber-800'
                             }`}
                           >
-                            نطق: {card.phonetic}
+                            {card.phonetic}
                           </div>
                         )}
                       </div>
@@ -285,16 +310,18 @@ export const MatchingGame: React.FC<MatchingGameProps> = ({ words, onWordMastere
             </div>
           </div>
 
-          {/* Arabic Column */}
+          {/* Meaning Column (Arabic) */}
           <div className="space-y-3">
             <div className="bg-amber-100/70 text-amber-900 px-4 py-2 rounded-2xl text-xs font-bold flex items-center justify-between">
               <span>المعاني باللغة العربية:</span>
-              <span className="text-[11px] text-amber-700 font-medium">اختاري المعنى المقابل</span>
+              <span className="text-[11px] text-amber-700 font-medium">
+                اختاري المعنى المقابل
+              </span>
             </div>
 
             <div className="space-y-2.5">
-              {arabicColumnCards.map((card) => {
-                const isSelected = selectedArabic?.id === card.id;
+              {meaningColumnCards.map((card) => {
+                const isSelected = selectedMeaning?.id === card.id;
                 return (
                   <button
                     key={card.id}
